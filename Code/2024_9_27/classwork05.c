@@ -17,13 +17,13 @@ int main()
     scanf("%f", &f);
     scanf("%lf", &g);
 
-    printf("The 'char' variable is '%c', it takes %zu byte.\n", a, sizeof(a));
-    printf("The 'short' variable is %hd, it takes %zu byte.\n", b, sizeof(b));
-    printf("The 'int' variable is %d, it takes %zu byte.\n", c, sizeof(c));
-    printf("The 'long' variable is %ld, it takes %zu byte.\n", d, sizeof(d));
-    printf("The 'long long' variable is %lld, it takes %zu byte.\n", e, sizeof(e));
-    printf("The 'float' variable is %.4f, it takes %zu byte.\n", f, sizeof(f));
-    printf("The 'double' variable is %.4lf, it takes %zu byte.\n", g, sizeof(g));
+    printf("The 'char' variable is %c, it takes %zu byte.\n", a, sizeof(a));
+    printf("The 'short' variable is %hd, it takes %zu bytes.\n", b, sizeof(b));
+    printf("The 'int' variable is %d, it takes %zu bytes.\n", c, sizeof(c));
+    printf("The 'long' variable is %ld, it takes %zu bytes.\n", d, sizeof(d));
+    printf("The 'long long' variable is %lld, it takes %zu bytes.\n", e, sizeof(e));
+    printf("The 'float' variable is %.6lf, it takes %zu bytes.\n", f, sizeof(f));
+    printf("The 'double' variable is %.6lf, it takes %zu bytes.", g, sizeof(g));
 
     return 0;
 }
