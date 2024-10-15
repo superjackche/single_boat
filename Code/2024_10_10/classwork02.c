@@ -15,45 +15,31 @@
 
 输出格式:
 上述得分为常规时间结束（包括先得21分及以上直接获胜的情况）时的比分，如果A队获胜，则输出A win；如果B队获胜，则输出B win；如果两队打平，需要进行加时赛，则输出no result；如果出现不可能的比分（比如 29 30），则输出error。*/
-#include <stdio.h>
-#include <stdlib.h>
-int main() {
-    int a, b;
-    
-    // 增加输入验证
-    if (scanf("%d %d", &a, &b) != 2) {
-        printf("Invalid input");
-        return 1;
-    }
-    
-    // 简化条件判断
-    if (a > 21 || b > 21) {
-        if (abs(a - b) == 2) {
-            if (a > b) {
-                printf("A win");
-            } else {
-                printf("B win");
-            }
-        } else {
-            printf("error");
-        }
-    } else if (a == 21 && b == 21) {  // 处理 a 和 b 均为 21 的情况
-        printf("no result");
-    } else if (a == 21 || b == 21) {
-        if (a == 21) {
-            printf("A win");
-        } else {
-            printf("B win");
-        }
-    } else {
-        if (a > b) {
-            printf("A win");
-        } else if (b > a) {
-            printf("B win");
-        } else {
-            printf("no result");
-        }
-    }
-    
-    return 0;
+#include<stdio.h>
+int main()
+{
+	int a, b;
+	scanf("%d %d", &a, &b);
+	if (a == 21 && b < 21) {
+		printf("A win");
+	} else if (a == 22 && b < 21) {
+		printf("A win");
+	} else if (a < 21 && b == 22) {
+		printf("B win");
+	} else if (a < 21 && b == 21) {
+		printf("B win");
+	} else if (b < 21 && a < 21) {
+		if (a == b) {
+			printf("no result");
+		} else if (a > b) {
+			printf("A win");
+		} else if(a < b) {
+			printf("B win");
+		}
+	} else {
+		printf("error");
+	}
+	
+	
+	return 0;
 }
