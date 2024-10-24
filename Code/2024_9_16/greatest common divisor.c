@@ -14,7 +14,7 @@ int main()
             printf("the greatest common divisor of %d and %d is: %d\n", a, b, min);
             break;
         }
-        else min--;
+        else min--;//有问题，还没解决
     }
 
     return 0;
