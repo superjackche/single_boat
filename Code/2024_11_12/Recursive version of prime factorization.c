@@ -22,19 +22,25 @@ int isPrime(int n) {
 }
 
 void printFactor(int n, int factor) {
-    
     if (n == 1) {
-        printf("\n");
+        printf("1=1\n");
         return;
     }
+
     if (factor == 1) {
         printf("%d=", n);
         factor = 2;
     }
+
     if (n % factor == 0) {
         printf("%d", factor);
         n /= factor;
-        if (n != 1) printf("*");
+        if (n != 1) {
+            printf("*");
+        } else {
+            printf("\n");
+            return;
+        }
         printFactor(n, factor);
     } else {
         if (factor == 2) {
