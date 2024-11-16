@@ -10,6 +10,6 @@ int main() {
     double a1 = pow((1+a5)/2.0, n);
     double a2 = pow((1-a5)/2.0, n);
     a0 = (a1-a2)/a5;
-    printf("%.2lf", a0);
+    printf("%.2lld", a0);
     return 0;
 }
