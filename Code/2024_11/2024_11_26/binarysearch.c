@@ -7,8 +7,7 @@ int BinarySearch(int a[],int n,int key) ;
 
 int main()
 {
-    int    num[200] ; 
-    //这个数组比较大，如果在你的电脑中无法分配这么大的内存，请改小后测试。
+    int    num[2000000] ; //这个数组比较大，如果在你的电脑中无法分配这么大的内存，请改小后测试。
     int        n , m, i;    
     int        key ;
     
@@ -27,23 +26,20 @@ int main()
 }
 
 
-int BinarySearch(int a[],int n,int key)
-{
-    if (key < a[0] || key > a[n-1]) return -1;
-    int p = 0, q = n-1, mid = (p+q)/2;
-    for (int i = mid; mid <= q; i++)
-    {
-        if (a[i] > key)
-        {
-            q = mid;
-            mid = (p+q)/2;
+int BinarySearch(int a[], int n, int key) {
+    int p = 0, q = n - 1;
+
+    while (p <= q) {
+        int mid = p + (q - p) / 2; // 防止 (p + q) 溢出
+
+        if (a[mid] == key) {
+            return mid;
+        } else if (a[mid] < key) {
+            p = mid + 1;
+        } else {
+            q = mid - 1;
         }
-        else if (a[i] < key)
-        {
-            p = mid;
-            mid = (p+q)/2;
-        }
-        else return i;
     }
+
     return -1;
 }

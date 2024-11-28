@@ -1,13 +1,13 @@
 #include <stdio.h>
 
-//Éè¼ÆÒ»¸ö½»»»Ëã·¨
+//è®¾è®¡ä¸€ä¸ªäº¤æ¢ç®—æ³•
 void swap(int *a, int *b) {
     int temp = *a;
     *a = *b;
     *b = temp;
 }
 
-// Éè¼ÆÒ»¸ö´ÓĞ¡µ½´óÅÅĞòµÄÃ°ÅİÅÅĞò
+// è®¾è®¡ä¸€ä¸ªä»å°åˆ°å¤§æ’åºçš„å†’æ³¡æ’åº
 void bubble_sort(int arr[], int sz) {
     int flag = 0;
     for (int i = 0; i < sz - 1; i++) {
@@ -20,7 +20,7 @@ void bubble_sort(int arr[], int sz) {
         if (flag == 0) {
             break;
         }
-        // ´òÓ¡Ã¿´ÎÅÅĞòºóµÄÊı×é
+        // æ‰“å°æ¯æ¬¡æ’åºåçš„æ•°ç»„
         for (int i = 0; i < sz; i++) {
             printf("%d ", arr[i]);
         }
@@ -35,7 +35,7 @@ int main() {
     while (scanf("%d", &arr[i])) {
         i++;
         if (i >= 1024 || getchar() == '\n') {
-            break; // ·ÀÖ¹Êı×éÔ½½ç
+            break; // é˜²æ­¢æ•°ç»„è¶Šç•Œ
         }
     }
 
