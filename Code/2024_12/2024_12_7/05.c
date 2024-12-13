@@ -46,7 +46,7 @@ int main() {
             return 0;
         }
     }
-    
+
     printf("YES\n");
     return 0;
 }
