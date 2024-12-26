@@ -12,15 +12,14 @@ int main() {
     char **p = (char **)malloc(n * sizeof(char *));
     if (p == NULL) return -1;
 
-    char temp[1000];
+    char temp[1024];
     for (int i = 0; i < n; i++) {
         fgets(temp, sizeof(temp), stdin);
         temp[strcspn(temp, "\n")] = '\0'; // 去除换行符
 
         int len = strlen(temp);
         char *ch = (char *)malloc((len + 1) * sizeof(char));
-        if (ch == NULL) return -1;
-        
+        //此处*ch存储的是新分配字符串的首地址
         strcpy(ch, temp);
         p[i] = ch;
     }

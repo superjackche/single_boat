@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 char *locatesubstr(char *str1,char *str2);
 int main()
@@ -24,7 +25,7 @@ char *locatesubstr(char *str1,char *str2)
         int count = 0;
         for (int j = 0; j < n; j++)
         {
-            if (str1[i+j] == str2[j]) count++;
+            if (*(str1+i+j) == *(str2+j)) count++;
         }
         if (count == n) return str1 + i;
     }

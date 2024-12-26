@@ -26,7 +26,7 @@ int main() {
     double average[n];
     int total[n];
     for (int j = 0; j < n; j++) {
-        getchar();  //记得清楚换行符
+        getchar();  //记得吃掉换行符
         total[j] = 0;   //初始化
         gets(stu[j].name);
         gets(stu[j].id);

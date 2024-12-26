@@ -12,6 +12,8 @@ int main(void) {
     getchar(); // 清除缓冲区中的换行符
     fgets(article, sizeof(article), stdin);
 
+    int len0 = strlen(word);
+    int len = strlen(article);
     // 去除末尾的换行符
     word[strcspn(word, "\n")] = '\0';
     article[strcspn(article, "\n")] = '\0';
@@ -20,45 +22,39 @@ int main(void) {
     for (int i = 0; word[i]; i++) {
         word[i] = tolower(word[i]);
     }
-    for (int i = 0; article[i]; i++) {
-        article[i] = tolower(article[i]);
-    }
+    
+    int word_num = 0;
+    int first_word = -1;
+    int show_time = 0;
+    int end_num = 0;
+    int num = 0;
+    int sign = 0;
 
-    int word_len = strlen(word);
-    int art_len = strlen(article);
-    int count = 0;
-    int first_pos = -1;
-    int curr_pos = 0;
-    int word_pos = 0; // 单词位置，从 0 开始计数
+    while (num < len) {
+        while(num < len && article[num] == ' ') {
+            num++;
+            word_num = num;
+        }
+        if(num >= len) break;
+        
+        int start = num;
 
-    // 在文章中查找单词
-    while (curr_pos < art_len) {
-        // 跳过空格
-        while (curr_pos < art_len && article[curr_pos] == ' ') curr_pos++;
-        if (curr_pos >= art_len) break;
-
-        // 检查是否匹配目标单词
-        if (strncmp(article + curr_pos, word, word_len) == 0 &&
-            (article[curr_pos + word_len] == ' ' || article[curr_pos + word_len] == '\0') &&
-            (curr_pos == 0 || article[curr_pos - 1] == ' ')) {
-            // 匹配成功
-            count++;
-            if (first_pos == -1) {
-                first_pos = word_pos;
-            }
+        for (; article[num] != ' '; num++) {
+            article[num] = tolower(article[num]);
         }
 
-        // 移动到下一个单词
-        while (curr_pos < art_len && article[curr_pos] != ' ') curr_pos++;
-        word_pos++; // 单词位置加 1
+        if (num - start != len0) continue;
+        if (strncmp(&article[start], word, len0) == 0) {
+            if (first_word == -1) {
+                first_word = word_num;
+            }
+            show_time++;
+        }
     }
 
-    // 输出结果
-    if (count > 0) {
-        printf("%d %d", count, first_pos);
-    } else {
-        printf("-1");
-    }
-
+    if (show_time != 0) {
+        printf("%d %d", show_time, first_word);
+    } else printf("-1");
+    
     return 0;
 }
