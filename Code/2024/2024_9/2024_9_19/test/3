@@ -1,0 +1,42 @@
+#! /usr/bin/python3
+# -*- coding: utf-8 -*-
+ 
+import random
+import string
+ 
+ 
+def rle_compress(s):
+    """
+    对字符串使用RLE算法压缩，s中不能出现数字
+    :param s:
+    :return:
+    """
+    result = ''
+    last = s[0]
+    count = 1
+    for _ in s[1:]:
+        if last == _:
+            count += 1
+        else:
+            result +=last + str(count)
+            last = _
+            count = 1
+    result +=last+str(count)
+    return result
+ 
+
+ 
+def random_rle_friendly_string(length):
+    result = ''
+    while length > 0:
+        current_length = random.randint(1, length)
+        current_char = random.choice(string.ascii_letters)
+        result += (current_length*current_char)
+        current_length-=length
+    return result
+ 
+
+if __name__ == '__main__':
+    raw_string = input()
+    rle_compressed = rle_compress(raw_string)
+    print('%s' % rle_compressed)
