@@ -8,57 +8,61 @@ int main(){
     int n;
     scanf("%d", &n);
 
-    char **stu = (char**)malloc(n*sizeof(char *));
-    for (int i = 0; i < n; i++) {
+    // 分配指针数组
+    char **stu = (char**)malloc(n * sizeof(char*));
+    for(int i = 0; i < n; i++){
         char temp[10001] = {'\0'};
         scanf("%s", temp);
-        int len = strlen(temp);
-        stu[i] = (char*)malloc(len*sizeof(char));
+        int len = strlen(temp) + 1; // +1 for '\0'
+        stu[i] = (char*)malloc(len * sizeof(char));
         strcpy(stu[i], temp);
     }
 
     sort(stu, n);
 
-    for (int i = 0; i < n; i++) {
+    // 输出并释放内存
+    for(int i = 0; i < n; i++){
         printf("%s\n", stu[i]);
+        free(stu[i]);
     }
+    free(stu);
+    return 0;
 }
 
-void sort(char **stu, int n) {
-
-    for (int m = 0; m < n; m++) {
-        for (int k = 0; k < n - 1; k++) {
-            int sign = 0;
-
-            char temp11[11];
-            char temp21[11];
-            int num1 = 0;
-            int num2 = 0;
-
-
-            int len1 = strlen(stu[k]);
-            int len2 = strlen(stu[k+1]);
-            for (int i = 0; i < len1; i++) {
-                if (stu[k][i] >= 'A' && stu[k][i] <= 'E') {
-                    temp11[num1++] = stu[k][i];
+void sort(char **stu, int n){
+    for(int i = 0; i < n - 1; i++){
+        for(int j = 0; j < n - 1 - i; j++){
+            // 提取卓越徽章
+            char temp1[11] = {'\0'};
+            char temp2[11] = {'\0'};
+            int num1 = 0, num2 = 0;
+            
+            // 提取第一个字符串的卓越徽章
+            for(int k = 0; stu[j][k] != '\0'; k++){
+                if(stu[j][k] >= 'A' && stu[j][k] <= 'E'){
+                    temp1[num1++] = stu[j][k];
                 }
             }
-            for (int i = 0; i < len2; i++) {
-                if (stu[k][i] >= 'A' && stu[k][i] <= 'E') {
-                    temp21[num2++] = stu[k][i];
+            
+            // 提取第二个字符串的卓越徽章
+            for(int k = 0; stu[j+1][k] != '\0'; k++){
+                if(stu[j+1][k] >= 'A' && stu[j+1][k] <= 'E'){
+                    temp2[num2++] = stu[j+1][k];
                 }
             }
-
-            if (strcmp(temp11, temp21) == 0) {
-                if (strcmp(stu[k], stu[k+1]) < 0) {
-                    sign = 1;
-                }
-            } else if (strcmp(temp11, temp21) < 0) sign = 1;
-
-            if (sign == 1) {
-                char *tempkey = stu[k];
-                stu[k] = stu[k+1];
-                stu[k+1] = tempkey;
+            
+            // 比较规则
+            int cmp = strcmp(temp2, temp1);
+            if(cmp == 0){
+                // 卓越徽章相同时比较原字符串
+                cmp = strcmp(stu[j+1], stu[j]);
+            }
+            
+            // 需要交换
+            if(cmp > 0){
+                char *temp = stu[j];
+                stu[j] = stu[j+1];
+                stu[j+1] = temp;
             }
         }
     }
