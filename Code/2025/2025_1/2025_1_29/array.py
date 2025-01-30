@@ -1,0 +1,12 @@
+my_list = ['101', 23, "school"]
+print(my_list)
+print(type(my_list))
+print(my_list[0])
+print(my_list[1])
+print(my_list[2])
+print(my_list[-1])
+print(my_list[-2])
+print(my_list[-3])
+print(type(my_list[0]))
+print(type(my_list[1]))
+print(type(my_list[2]))
