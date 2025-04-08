@@ -70,6 +70,7 @@ class DatasetWorker(QThread):
             output_dir = self.params.get('output_dir')
             filter_non_ascii = self.params.get('filter_non_ascii', True)
             random_seed = self.params.get('random_seed', 42)
+            split_sizes = self.params.get('split_sizes', {'train': 0, 'val': 0, 'test': 0})
             
             self.status_signal.emit("开始处理...")
             self.progress_signal.emit(5)
