@@ -8,8 +8,23 @@ import threading
 import urllib.request
 import zipfile
 import tempfile
-import time  # 添加time模块导入，之前缺失
+import time
 from pathlib import Path
+import traceback  # 用于更详细的错误跟踪
+import io  # 用于内存流处理
+
+# 尝试导入可选依赖
+OPTIONAL_DEPENDENCIES = {
+    'ijson': '流式处理大型JSON文件',
+    'tqdm': '提供进度条显示',
+}
+
+missing_dependencies = []
+for package, description in OPTIONAL_DEPENDENCIES.items():
+    try:
+        __import__(package)
+    except ImportError:
+        missing_dependencies.append(f"{package} (用途: {description})")
 
 # 尝试导入PyQt5，若不存在则提示安装
 try:
@@ -17,35 +32,59 @@ try:
                                QLabel, QLineEdit, QPushButton, QProgressBar, QComboBox, 
                                QCheckBox, QTabWidget, QTextEdit, QFileDialog, QSpinBox,
                                QGroupBox, QRadioButton, QMessageBox, QScrollArea, QSizePolicy,
-                               QStyleFactory, QFrame)
-    from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl, QSize, QTimer
+                               QStyleFactory, QFrame, QDialog, QTableWidget, QTableWidgetItem,
+                               QHeaderView, QDialogButtonBox)
+    from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl, QSize, QTimer, QObject, QRunnable, QThreadPool
     from PyQt5.QtGui import QFont, QDesktopServices, QIcon, QColor, QPalette
 except ImportError:
     print("PyQt5 未安装。请运行: pip install PyQt5")
     sys.exit(1)
 
-# 尝试导入datasets，若不存在则提示安装
-try:
-    from datasets import load_dataset
-except ImportError:
-    print("datasets 未安装。请运行: pip install datasets")
-    sys.exit(1)
+# 尝试导入必要的依赖
+REQUIRED_DEPENDENCIES = {
+    'datasets': 'load_dataset',
+    'git': 'Repo',
+    'requests': 'get',
+}
 
-# 尝试导入git，若不存在则提示安装
-try:
-    import git
-except ImportError:
-    print("GitPython 未安装。请运行: pip install GitPython")
-    sys.exit(1)
+for package, function in REQUIRED_DEPENDENCIES.items():
+    try:
+        module = __import__(package)
+        # 验证模块是否包含预期的功能
+        if function not in dir(module) and '.' not in function:
+            print(f"警告: {package} 已安装，但可能不是正确的版本")
+    except ImportError:
+        print(f"{package} 未安装。请运行: pip install {package}")
+        sys.exit(1)
 
-# 尝试导入requests，若不存在则提示安装
+# 成功导入所需的模块
+from datasets import load_dataset
+import git
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# 尝试导入可选模块，用于流式处理和进度条
 try:
-    import requests
-    from requests.adapters import HTTPAdapter
-    from urllib3.util.retry import Retry
+    import ijson
+    IJSON_AVAILABLE = True
 except ImportError:
-    print("requests 未安装。请运行: pip install requests")
-    sys.exit(1)
+    IJSON_AVAILABLE = False
+
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+
+# 如果有缺失的可选依赖，在启动时显示一次警告
+if missing_dependencies:
+    print("警告: 以下可选依赖未安装，某些功能可能受限:")
+    for dep in missing_dependencies:
+        print(f"  - {dep}")
+    print("可以通过以下命令安装全部可选依赖:")
+    print(f"  pip install {' '.join([dep.split()[0] for dep in missing_dependencies])}")
+    print("程序将继续运行，但部分功能可能受限。")
 
 class DownloadProgressTracker:
     """用于跟踪下载进度的类"""
@@ -236,7 +275,7 @@ class DatasetWorker(QThread):
             current_progress = progress_stages['save_data'][0]
             
             # 保存训练集
-            if train_size > 0:
+            if (train_size > 0):
                 self.status_signal.emit(f"正在保存训练集 ({train_size} 条记录)...")
                 train_format = output_formats.get('train', 'json')
                 train_filename = os.path.join(output_dir, f"train_{train_size}.{train_format}")
@@ -246,7 +285,7 @@ class DatasetWorker(QThread):
                 self.progress_signal.emit(int(current_progress))
             
             # 保存验证集
-            if val_size > 0:
+            if (val_size > 0):
                 self.status_signal.emit(f"正在保存验证集 ({val_size} 条记录)...")
                 val_format = output_formats.get('val', 'jsonl')
                 val_filename = os.path.join(output_dir, f"val_{val_size}.{val_format}")
@@ -256,7 +295,7 @@ class DatasetWorker(QThread):
                 self.progress_signal.emit(int(current_progress))
             
             # 保存测试集
-            if test_size > 0:
+            if (test_size > 0):
                 self.status_signal.emit(f"正在保存测试集 ({test_size} 条记录)...")
                 test_format = output_formats.get('test', 'jsonl')
                 test_filename = os.path.join(output_dir, f"test_{test_size}.{test_format}")
@@ -276,11 +315,11 @@ class DatasetWorker(QThread):
                     
                     # 汇总处理结果
                     summary = []
-                    if train_size > 0:
+                    if (train_size > 0):
                         summary.append(f"训练集: {train_size} 条记录")
-                    if val_size > 0:
+                    if (val_size > 0):
                         summary.append(f"验证集: {val_size} 条记录")
-                    if test_size > 0:
+                    if (test_size > 0):
                         summary.append(f"测试集: {test_size} 条记录")
                     
                     summary_text = "、".join(summary)
@@ -372,7 +411,7 @@ class DatasetWorker(QThread):
             shutil.rmtree(temp_dir, ignore_errors=True)
     
     def _load_from_url(self, url):
-        """从URL下载并加载数据集"""
+        """从URL下载并加载数据集，使用流式处理减少内存占用"""
         import time
         self.status_signal.emit(f"🔄 正在从URL下载数据: {url}...")
         
@@ -381,13 +420,38 @@ class DatasetWorker(QThread):
         temp_file.close()
         
         try:
+            # 检查URL是否可访问
+            try:
+                session = self._create_session_with_retry()
+                response = session.head(url, allow_redirects=True, timeout=10)
+                
+                # 检查响应状态码
+                if (response.status_code >= 400):
+                    error_message = f"URL不可访问: HTTP错误 {response.status_code}"
+                    if response.status_code == 404:
+                        error_message = f"资源不存在 (404): 请检查URL是否正确"
+                    elif response.status_code == 403:
+                        error_message = f"访问被拒绝 (403): 可能需要权限或网站禁止爬虫"
+                    elif response.status_code >= 500:
+                        error_message = f"服务器错误 ({response.status_code}): 请稍后再试"
+                    
+                    self.error_signal.emit(f"❌ {error_message}")
+                    raise requests.RequestException(error_message)
+                    
+                total_size = int(response.headers.get('content-length', 0))
+                
+            except requests.exceptions.ConnectionError:
+                self.error_signal.emit("❌ 连接错误: 无法连接到服务器，请检查网络连接")
+                raise
+            except requests.exceptions.Timeout:
+                self.error_signal.emit("❌ 连接超时: 服务器响应时间过长，请稍后再试")
+                raise
+            except requests.RequestException as e:
+                self.error_signal.emit(f"❌ 请求错误: {str(e)}")
+                raise
+                
             # 使用requests下载并显示进度
             self.status_signal.emit("开始下载文件...")
-            
-            # 先获取文件大小
-            session = self._create_session_with_retry()
-            response = session.head(url, allow_redirects=True)
-            total_size = int(response.headers.get('content-length', 0))
             
             # 下载文件并显示进度
             start_time = time.time()
@@ -398,7 +462,10 @@ class DatasetWorker(QThread):
             with session.get(url, stream=True) as r:
                 r.raise_for_status()
                 with open(temp_file.name, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
+                    # 更大的块大小，提高下载速度 (8KB -> 64KB)
+                    chunk_size = 65536  # 64KB
+                    
+                    for chunk in r.iter_content(chunk_size=chunk_size):
                         if not self.is_running:
                             raise InterruptedError("下载被用户取消")
                         
@@ -406,7 +473,7 @@ class DatasetWorker(QThread):
                             f.write(chunk)
                             downloaded_size += len(chunk)
                             
-                            # 每0.5秒更新一次进度
+                            # 每0.5秒更新一次进度，避免频繁更新UI导致卡顿
                             current_time = time.time()
                             if current_time - last_update_time > 0.5:
                                 elapsed = current_time - start_time
@@ -444,101 +511,278 @@ class DatasetWorker(QThread):
             
             self.status_signal.emit(f"✅ 文件下载完成 ({downloaded_size/(1024*1024):.2f}MB)")
             
-            # 检查文件类型
+            # 检查文件类型并处理
             data = []
+            file_extension = os.path.splitext(url)[1].lower()
             
-            # 如果是JSON或JSONL
-            if url.endswith('.json') or url.endswith('.jsonl'):
+            # JSONL文件 - 使用流式处理
+            if file_extension == '.jsonl':
+                self.status_signal.emit("逐行解析JSONL文件...")
                 with open(temp_file.name, 'r', encoding='utf-8') as f:
-                    if url.endswith('.json'):
-                        self.status_signal.emit("解析JSON文件...")
-                        data = json.load(f)
-                        self.status_signal.emit(f"解析完成, 包含 {len(data)} 条记录")
-                    else:  # .jsonl
-                        self.status_signal.emit("解析JSONL文件...")
-                        data = [json.loads(line) for line in f]
-                        self.status_signal.emit(f"解析完成, 包含 {len(data)} 条记录")
+                    line_count = 0
+                    last_update_time = time.time()
+                    
+                    for line in f:
+                        if not line.strip():
+                            continue
+                            
+                        try:
+                            item = json.loads(line)
+                            data.append(item)
+                            line_count += 1
+                            
+                            if line_count % 1000 == 0:
+                                current_time = time.time()
+                                if current_time - last_update_time >= 1.0:
+                                    self.status_signal.emit(f"已解析 {line_count} 条记录...")
+                                    last_update_time = current_time
+                                    
+                        except json.JSONDecodeError as e:
+                            error_message = f"JSON解析错误 (行 {line_count+1}): {str(e)}"
+                            self.error_signal.emit(error_message)
+                            # 继续处理，跳过错误行
+                    
+                self.status_signal.emit(f"✅ JSONL文件解析完成，加载了 {line_count} 条记录")
             
-            # 如果是ZIP
-            elif url.endswith('.zip'):
+            # JSON文件 - 对大文件使用流式处理
+            elif file_extension == '.json':
+                file_size = os.path.getsize(temp_file.name)
+                is_large_file = file_size > 100 * 1024 * 1024  # 100MB
+                
+                if is_large_file and IJSON_AVAILABLE:
+                    self.status_signal.emit("检测到大型JSON文件，使用流式解析...")
+                    with open(temp_file.name, 'rb') as f:
+                        count = 0
+                        last_update_time = time.time()
+                        
+                        # 使用ijson流式解析
+                        for item in ijson.items(f, 'item'):
+                            data.append(item)
+                            count += 1
+                            
+                            if count % 1000 == 0:
+                                current_time = time.time()
+                                if current_time - last_update_time >= 1.0:
+                                    self.status_signal.emit(f"已解析 {count} 条记录...")
+                                    last_update_time = current_time
+                        
+                        self.status_signal.emit(f"✅ 解析完成，加载了 {count} 条记录")
+                else:
+                    # 对于小文件，使用标准json库
+                    self.status_signal.emit("解析JSON文件...")
+                    try:
+                        with open(temp_file.name, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            self.status_signal.emit(f"✅ 解析完成，加载了 {len(data)} 条记录")
+                    except UnicodeDecodeError:
+                        # 如果UTF-8解码失败，尝试使用其他编码
+                        self.status_signal.emit("UTF-8解码失败，尝试其他编码...")
+                        for encoding in ['latin1', 'cp1252']:
+                            try:
+                                with open(temp_file.name, 'r', encoding=encoding) as f:
+                                    data = json.load(f)
+                                    self.status_signal.emit(f"✅ 使用 {encoding} 编码成功解析，加载了 {len(data)} 条记录")
+                                    break
+                            except Exception:
+                                continue
+                        else:
+                            raise UnicodeDecodeError("无法解码JSON文件，请确保文件编码正确")
+            
+            # ZIP文件
+            elif file_extension == '.zip':
                 self.status_signal.emit("解压ZIP文件...")
                 temp_dir = tempfile.mkdtemp()
                 
-                with zipfile.ZipFile(temp_file.name, 'r') as zip_ref:
-                    zip_ref.extractall(temp_dir)
+                try:
+                    with zipfile.ZipFile(temp_file.name, 'r') as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                        
+                    # 查找JSON/JSONL文件
+                    self.status_signal.emit("查找JSON/JSONL文件...")
+                    json_files = list(Path(temp_dir).glob('**/*.json')) + list(Path(temp_dir).glob('**/*.jsonl'))
                     
-                self.status_signal.emit("查找JSON/JSONL文件...")
-                json_files = list(Path(temp_dir).glob('**/*.json')) + list(Path(temp_dir).glob('**/*.jsonl'))
-                
-                if not json_files:
-                    raise ValueError("ZIP文件中未找到JSON或JSONL数据文件")
-                
-                # 使用最大的JSON文件
-                largest_file = max(json_files, key=lambda x: x.stat().st_size)
-                file_size_mb = largest_file.stat().st_size / (1024 * 1024)
-                self.status_signal.emit(f"使用最大的文件: {largest_file.name} ({file_size_mb:.2f}MB)")
-                
-                with open(largest_file, 'r', encoding='utf-8') as f:
-                    if largest_file.suffix == '.json':
-                        self.status_signal.emit("解析JSON文件...")
-                        data = json.load(f)
-                    else:  # .jsonl
-                        self.status_signal.emit("解析JSONL文件...")
-                        data = [json.loads(line) for line in f]
-                
-                self.status_signal.emit(f"解析完成, 包含 {len(data)} 条记录")
-                
-                # 清理临时目录
-                import shutil
-                shutil.rmtree(temp_dir, ignore_errors=True)
+                    if not json_files:
+                        error_message = "ZIP文件中未找到JSON或JSONL数据文件"
+                        self.error_signal.emit(f"❌ {error_message}")
+                        raise FileNotFoundError(error_message)
+                    
+                    # 使用最大的JSON/JSONL文件
+                    json_files.sort(key=lambda x: x.stat().st_size, reverse=True)
+                    largest_file = json_files[0]
+                    file_size_mb = largest_file.stat().st_size / (1024 * 1024)
+                    
+                    self.status_signal.emit(f"找到 {len(json_files)} 个文件，使用最大的文件: {largest_file.name} ({file_size_mb:.2f}MB)")
+                    
+                    # 根据文件类型选择处理方式
+                    if largest_file.suffix.lower() == '.jsonl':
+                        line_count = 0
+                        with open(largest_file, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                if line.strip():
+                                    data.append(json.loads(line))
+                                    line_count += 1
+                        self.status_signal.emit(f"✅ JSONL文件解析完成，加载了 {line_count} 条记录")
+                    else:  # .json
+                        is_large_json = file_size_mb > 100  # 大于100MB视为大文件
+                        
+                        if is_large_json and IJSON_AVAILABLE:
+                            count = 0
+                            with open(largest_file, 'rb') as f:
+                                for item in ijson.items(f, 'item'):
+                                    data.append(item)
+                                    count += 1
+                            self.status_signal.emit(f"✅ 大型JSON文件解析完成，加载了 {count} 条记录")
+                        else:
+                            with open(largest_file, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                            self.status_signal.emit(f"✅ JSON文件解析完成，加载了 {len(data)} 条记录")
+                finally:
+                    # 清理临时目录
+                    import shutil
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    self.status_signal.emit("已清理临时解压文件")
             
+            # 其他文件类型
             else:
-                raise ValueError(f"不支持的文件类型: {url}，目前仅支持 .json, .jsonl 和 .zip")
+                supported_formats = ".json, .jsonl, .zip"
+                error_message = f"不支持的文件类型: {file_extension}，目前仅支持 {supported_formats}"
+                self.error_signal.emit(f"❌ {error_message}")
+                raise ValueError(error_message)
             
             return data
             
         except requests.RequestException as e:
-            self.error_signal.emit(f"下载失败: {str(e)}")
+            if "未能解析" in str(e) or "getaddrinfo failed" in str(e):
+                self.error_signal.emit("❌ DNS解析失败: 无法解析域名，请检查URL是否正确")
+            elif "ConnectTimeoutError" in str(e.__class__.__name__):
+                self.error_signal.emit("❌ 连接超时: 服务器响应超时，请检查网络连接或稍后再试")
+            elif "Max retries exceeded" in str(e):
+                self.error_signal.emit("❌ 连接失败: 多次重试后仍然无法连接，请检查网络或URL")
+            else:
+                self.error_signal.emit(f"❌ 下载失败: {str(e)}")
             raise
         except json.JSONDecodeError as e:
-            self.error_signal.emit(f"JSON解析错误: {str(e)}")
+            self.error_signal.emit(f"❌ JSON解析错误: {str(e)}")
+            raise
+        except zipfile.BadZipFile:
+            self.error_signal.emit("❌ 无效的ZIP文件: 文件损坏或不是ZIP格式")
             raise
         except Exception as e:
-            self.error_signal.emit(f"加载URL数据时出错: {str(e)}")
+            self.error_signal.emit(f"❌ 加载数据时出错: {str(e)}")
             raise
         finally:
-            # 清理临时文件
-            if os.path.exists(temp_file.name):
-                os.unlink(temp_file.name)
+            # 确保清理临时文件
+            try:
+                if os.path.exists(temp_file.name):
+                    os.unlink(temp_file.name)
+            except Exception as e:
+                self.error_signal.emit(f"警告: 清理临时文件失败: {str(e)}")
     
     def _load_from_local(self, file_path):
-        """从本地文件加载数据集"""
+        """从本地文件加载数据集，对大文件使用流式处理"""
         self.status_signal.emit(f"🔄 正在加载本地文件: {file_path}...")
         data = []
+        
         try:
-            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            file_size = os.path.getsize(file_path)
+            file_size_mb = file_size / (1024 * 1024)
             self.status_signal.emit(f"文件大小: {file_size_mb:.2f}MB")
             
+            # 判断是否为大文件 (>100MB)
+            is_large_file = file_size > 100 * 1024 * 1024
+            
             if file_path.endswith('.json'):
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    self.status_signal.emit("解析JSON文件...")
-                    data = json.load(f)
-                    self.status_signal.emit(f"✅ 解析完成, 加载了 {len(data)} 条记录")
+                # 对于大型JSON文件，尝试使用ijson进行流式解析
+                if is_large_file and IJSON_AVAILABLE:
+                    self.status_signal.emit("检测到大型JSON文件，使用流式解析...")
+                    with open(file_path, 'rb') as f:
+                        # 使用ijson.items迭代解析大型JSON文件中的项目
+                        generator = ijson.items(f, 'item')
+                        
+                        # 初始计数器
+                        count = 0
+                        last_update_time = time.time()
+                        
+                        for item in generator:
+                            data.append(item)
+                            count += 1
+                            
+                            # 每1000个项目更新一次状态
+                            if count % 1000 == 0:
+                                current_time = time.time()
+                                # 每秒最多更新一次UI，避免UI卡顿
+                                if current_time - last_update_time >= 1.0:
+                                    self.status_signal.emit(f"已处理 {count} 条记录...")
+                                    last_update_time = current_time
+                            
+                            # 检查是否被用户中断
+                            if not self.is_running:
+                                self.status_signal.emit("处理被用户中断")
+                                return []
+                    
+                    self.status_signal.emit(f"✅ 流式解析完成，加载了 {len(data)} 条记录")
+                else:
+                    # 对于小文件，使用标准json库
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        self.status_signal.emit("解析JSON文件...")
+                        data = json.load(f)
+                        self.status_signal.emit(f"✅ 解析完成，加载了 {len(data)} 条记录")
+            
             elif file_path.endswith('.jsonl'):
+                # JSONL文件都可以使用流式处理，逐行读取
+                self.status_signal.emit("逐行解析JSONL文件...")
                 with open(file_path, 'r', encoding='utf-8') as f:
-                    self.status_signal.emit("逐行解析JSONL文件...")
-                    line_count = 0
+                    count = 0
+                    last_update_time = time.time()
+                    
                     for line in f:
-                        data.append(json.loads(line))
-                        line_count += 1
-                        if line_count % 1000 == 0:  # 每1000行更新一次
-                            self.status_signal.emit(f"已处理 {line_count} 行...")
-                    self.status_signal.emit(f"✅ 解析完成, 加载了 {len(data)} 条记录")
+                        if not line.strip():  # 跳过空行
+                            continue
+                            
+                        try:
+                            item = json.loads(line)
+                            data.append(item)
+                            count += 1
+                            
+                            # 更新进度 
+                            if count % 1000 == 0:
+                                current_time = time.time()
+                                if current_time - last_update_time >= 1.0:
+                                    progress_percentage = min(99, int(f.tell() / file_size * 100))
+                                    self.status_signal.emit(f"已处理 {count} 行... ({progress_percentage}%)")
+                                    last_update_time = current_time
+                            
+                            # 检查是否被中断
+                            if not self.is_running:
+                                self.status_signal.emit("处理被用户中断")
+                                return []
+                                
+                        except json.JSONDecodeError as e:
+                            line_number = count + 1
+                            error_message = f"第 {line_number} 行JSON解析错误: {str(e)}"
+                            self.error_signal.emit(error_message)
+                            # 继续解析，跳过错误行
+                            continue
+                
+                self.status_signal.emit(f"✅ 解析完成，加载了 {len(data)} 条记录")
+            
             else:
-                raise ValueError("不支持的文件格式，仅支持 .json 和 .jsonl")
+                supported_formats = ".json 或 .jsonl"
+                error_message = f"不支持的文件格式: {os.path.splitext(file_path)[1]}，目前仅支持 {supported_formats}"
+                self.error_signal.emit(f"❌ {error_message}")
+                raise ValueError(error_message)
+                
+        except MemoryError:
+            error_message = "内存不足，无法加载整个文件。建议使用更小的数据集或增加系统内存。"
+            self.error_signal.emit(f"❌ {error_message}")
+            raise
+        except ValueError as e:
+            self.error_signal.emit(f"❌ 文件格式错误: {str(e)}")
+            raise
         except Exception as e:
             self.error_signal.emit(f"❌ 加载本地文件失败: {str(e)}")
             raise
+            
         return data
     
     def _filter_non_ascii(self, data, start_progress, end_progress):
@@ -662,7 +906,6 @@ class DatasetWorker(QThread):
                             "input": "",
                             "output": solution or ""
                         }
-                        items.append(record)
                     json.dump(items, f, ensure_ascii=True, indent=2)
                 else:  # jsonl
                     for item in data_subset:
@@ -894,16 +1137,6 @@ class DatasetToolUI(QMainWindow):
                 border: 1px solid #dcdcdc;
                 border-radius: 4px;
                 background-color: white;
-                padding: 4px;
-                selection-background-color: #4876FF;
-                selection-color: white;
-            }
-            
-            QRadioButton::indicator {
-                width: 16px;
-                height: 16px;
-            }
-            
             QCheckBox::indicator {
                 width: 16px;
                 height: 16px;
@@ -989,11 +1222,16 @@ class DatasetToolUI(QMainWindow):
         hf_name_layout.addWidget(hf_name_label)
         hf_name_layout.addWidget(self.hf_name_input)
         
+        hf_buttons_layout = QHBoxLayout()
         hf_browse_button = QPushButton("浏览数据集")
         hf_browse_button.clicked.connect(self.browse_huggingface)
+        hf_preview_button = QPushButton("预览数据集")
+        hf_preview_button.clicked.connect(lambda: self.preview_dataset('huggingface'))
+        hf_buttons_layout.addWidget(hf_browse_button)
+        hf_buttons_layout.addWidget(hf_preview_button)
         
         hf_layout.addLayout(hf_name_layout)
-        hf_layout.addWidget(hf_browse_button)
+        hf_layout.addLayout(hf_buttons_layout)
         source_layout.addWidget(self.hf_group)
         
         # GitHub配置
@@ -1008,7 +1246,13 @@ class DatasetToolUI(QMainWindow):
         github_repo_layout.addWidget(github_repo_label)
         github_repo_layout.addWidget(self.github_repo_input)
         
+        github_buttons_layout = QHBoxLayout()
+        github_preview_button = QPushButton("预览数据")
+        github_preview_button.clicked.connect(lambda: self.preview_dataset('github'))
+        github_buttons_layout.addWidget(github_preview_button)
+        
         github_layout.addLayout(github_repo_layout)
+        github_layout.addLayout(github_buttons_layout)
         self.github_group.setVisible(False)
         source_layout.addWidget(self.github_group)
         
@@ -1024,7 +1268,13 @@ class DatasetToolUI(QMainWindow):
         url_input_layout.addWidget(url_label)
         url_input_layout.addWidget(self.url_input)
         
+        url_buttons_layout = QHBoxLayout()
+        url_preview_button = QPushButton("预览数据")
+        url_preview_button.clicked.connect(lambda: self.preview_dataset('url'))
+        url_buttons_layout.addWidget(url_preview_button)
+        
         url_layout.addLayout(url_input_layout)
+        url_layout.addLayout(url_buttons_layout)
         self.url_group.setVisible(False)
         source_layout.addWidget(self.url_group)
         
@@ -1044,8 +1294,14 @@ class DatasetToolUI(QMainWindow):
         local_file_layout.addWidget(local_file_label)
         local_file_layout.addWidget(self.local_file_input)
         local_file_layout.addWidget(local_file_button)
+        
+        local_buttons_layout = QHBoxLayout()
+        local_preview_button = QPushButton("预览数据")
+        local_preview_button.clicked.connect(lambda: self.preview_dataset('local'))
+        local_buttons_layout.addWidget(local_preview_button)
 
         local_layout.addLayout(local_file_layout)
+        local_layout.addLayout(local_buttons_layout)
         self.local_group.setVisible(False)
         source_layout.addWidget(self.local_group)
         
@@ -1159,7 +1415,12 @@ class DatasetToolUI(QMainWindow):
         output_dir_layout.addWidget(self.output_dir_input)
         output_dir_layout.addWidget(output_dir_button)
         
+        self.stream_processing_checkbox = QCheckBox("使用流式处理 (推荐用于大文件)")
+        self.stream_processing_checkbox.setChecked(True)
+        self.stream_processing_checkbox.setToolTip("对大型JSON文件使用流式处理，减少内存占用")
+        
         other_layout.addWidget(self.filter_ascii_checkbox)
+        other_layout.addWidget(self.stream_processing_checkbox)
         other_layout.addLayout(random_seed_layout)
         other_layout.addLayout(output_dir_layout)
         output_layout.addWidget(other_group)
@@ -1456,6 +1717,390 @@ class DatasetToolUI(QMainWindow):
         else:
             self.show_error(status_message)
 
+    def preview_dataset(self, source_type):
+        """预览数据集内容，加载数据的小样本进行展示"""
+        self.log_text.clear()
+        self.update_status("准备预览数据...")
+        
+        try:
+            # 根据数据源类型获取预览数据
+            preview_data = None
+            
+            # 根据不同数据源获取预览数据
+            if source_type == 'local':
+                preview_data = self._preview_local_file()
+            elif source_type == 'huggingface':
+                preview_data = self._preview_huggingface()
+            elif source_type == 'url':
+                preview_data = self._preview_url()
+            elif source_type == 'github':
+                # GitHub需要完整下载后才能预览
+                self.update_status("GitHub仓库不支持直接预览，需要完整克隆后查看")
+                QMessageBox.information(self, "预览不可用", 
+                                      "GitHub仓库需要完整下载后才能预览数据，请点击「开始处理」进行完整操作。")
+                return
+            
+            # 显示预览对话框
+            if preview_data:
+                dialog = PreviewDialog(preview_data, "数据预览", self)
+                dialog.exec_()
+            else:
+                self.show_error("❌ 无法获取预览数据")
+                
+        except Exception as e:
+            self.show_error(f"❌ 预览数据时出错: {str(e)}")
+            import traceback
+            self.show_error(traceback.format_exc())
+
+    def _preview_local_file(self):
+        """预览本地文件的内容"""
+        file_path = self.local_file_input.text().strip()
+        if not file_path or not os.path.exists(file_path):
+            self.show_error("请选择有效的本地文件")
+            return None
+            
+        self.update_status(f"正在预览本地文件: {file_path}")
+        
+        try:
+            preview_data = None
+            file_size = os.path.getsize(file_path)
+            file_size_mb = file_size / (1024 * 1024)
+            
+            # 显示文件大小
+            self.update_status(f"文件大小: {file_size_mb:.2f}MB")
+            
+            # JSON文件
+            if file_path.endswith('.json'):
+                # 对于大文件，只读取前10个记录
+                if file_size > 10 * 1024 * 1024 and IJSON_AVAILABLE:  # >10MB
+                    self.update_status("使用流式解析预览大型JSON文件...")
+                    preview_items = []
+                    try:
+                        with open(file_path, 'rb') as f:
+                            # 尝试得到前几个记录
+                            for i, item in enumerate(ijson.items(f, 'item')):
+                                preview_items.append(item)
+                                if i >= 9:  # 只获取前10条
+                                    break
+                        
+                        if preview_items:
+                            self.update_status(f"✅ 成功加载 {len(preview_items)} 条预览记录")
+                            return preview_items[0]  # 返回第一条记录用于预览
+                        else:
+                            # 如果没有读到记录，可能不是数组格式，尝试读取整个对象
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content = f.read(10240)  # 读取前10KB
+                                try:
+                                    partial_data = json.loads(content.strip())
+                                    self.update_status("✅ 已加载JSON预览")
+                                    return partial_data
+                                except:
+                                    self.show_error("JSON格式无效或结构复杂")
+                                    return None
+                    except Exception as e:
+                        self.show_error(f"预览文件时出错: {str(e)}")
+                        # 尝试普通方式读取
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read(10240)  # 读取前10KB
+                            preview_data = json.loads(content)
+                            return preview_data
+                else:
+                    # 对于小文件，直接读取
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        self.update_status("✅ 已加载JSON预览")
+                        
+                        if isinstance(data, list) and data:
+                            return data[0]  # 如果是列表，返回第一项
+                        else:
+                            return data
+                            
+            # JSONL文件
+            elif file_path.endswith('.jsonl'):
+                preview_items = []
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for i, line in enumerate(f):
+                        if i >= 10:  # 只读取前10行
+                            break
+                        if line.strip():
+                            try:
+                                item = json.loads(line)
+                                preview_items.append(item)
+                            except json.JSONDecodeError:
+                                continue
+                
+                if preview_items:
+                    self.update_status(f"✅ 已加载 {len(preview_items)} 条JSONL预览记录")
+                    
+                    # 如果有多条记录，显示为多行表格
+                    if len(preview_items) > 1:
+                        dialog = PreviewDialog(preview_items, 
+                                             f"预览JSONL数据 ({len(preview_items)} 条记录)", 
+                                             self)
+                        dialog.exec_()
+                        return None  # 已显示对话框，返回None
+                    return preview_items[0]
+                else:
+                    self.show_error("无法解析JSONL文件或文件为空")
+                    return None
+            else:
+                self.show_error(f"不支持的文件类型: {os.path.splitext(file_path)[1]}")
+                return None
+                
+        except Exception as e:
+            self.show_error(f"预览文件时出错: {str(e)}")
+            import traceback
+            self.log_text.append(traceback.format_exc())
+            return None
+
+    def _preview_huggingface(self):
+        """预览Hugging Face数据集内容"""
+        dataset_name = self.hf_name_input.text().strip()
+        if not dataset_name:
+            self.show_error("请输入Hugging Face数据集名称")
+            return None
+        
+        self.update_status(f"正在从Hugging Face加载数据集预览: {dataset_name}")
+        
+        try:
+            # 只加载少量样本进行预览
+            dataset = load_dataset(dataset_name, split="train[:5]")
+            if len(dataset) > 0:
+                self.update_status(f"✅ 成功加载 {len(dataset)} 条预览记录")
+                
+                # 如果有多条记录，显示列表预览
+                if len(dataset) > 1:
+                    # 将Dataset对象转换为列表
+                    items = [dict(item) for item in dataset]
+                    dialog = PreviewDialog(items, f"预览 {dataset_name} 数据集", self)
+                    dialog.exec_()
+                    return None  # 已显示对话框，返回None
+                else:
+                    # 只有一条记录，直接返回
+                    return dict(dataset[0])
+            else:
+                self.show_error("❌ 数据集为空或不可访问")
+                return None
+                
+        except Exception as e:
+            self.show_error(f"❌ 预览Hugging Face数据集失败: {str(e)}")
+            
+            # 给出更具体的错误提示
+            error_str = str(e).lower()
+            if "not found" in error_str or "404" in error_str:
+                self.show_error("找不到指定的数据集，请检查数据集名称是否正确")
+            elif "permission" in error_str or "authorized" in error_str:
+                self.show_error("无权访问此数据集，可能需要登录或特殊权限")
+            elif "network" in error_str or "connect" in error_str:
+                self.show_error("网络连接错误，请检查您的互联网连接")
+            
+            return None
+
+    def _preview_url(self):
+        """预览URL数据内容"""
+        url = self.url_input.text().strip()
+        if not url or not url.startswith('http'):
+            self.show_error("请输入有效的数据集URL")
+            return None
+        
+        self.update_status(f"正在尝试预览URL数据: {url}")
+        
+        try:
+            # 创建带有重试机制的HTTP会话
+            session = requests.Session()
+            retry = Retry(
+                total=2,  # 减少重试次数，因为只是预览
+                backoff_factor=0.3,
+                status_forcelist=[500, 502, 503, 504]
+            )
+            adapter = HTTPAdapter(max_retries=retry)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
+            
+            # 创建临时文件以保存部分内容
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            file_extension = os.path.splitext(url)[1].lower()
+            
+            # 如果是JSON文件
+            if file_extension == '.json':
+                # 仅下载前10KB内容进行预览
+                self.update_status("下载数据片段用于预览...")
+                
+                try:
+                    headers = {'Range': 'bytes=0-10240'}  # 请求前10KB
+                    response = session.get(url, headers=headers, timeout=10)
+                    response.raise_for_status()
+                    
+                    # 尝试解析JSON数据
+                    try:
+                        # 先尝试完整解析
+                        content = response.text
+                        data = json.loads(content)
+                        
+                        self.update_status("✅ 成功下载并解析JSON数据预览")
+                        
+                        # 返回第一条记录或整个对象（如果不是列表）
+                        if isinstance(data, list):
+                            if data:
+                                return data[0]
+                            else:
+                                self.show_error("JSON数据为空列表")
+                                return None
+                        else:
+                            return data
+                            
+                    except json.JSONDecodeError:
+                        # JSON预览可能下载不完整，无法解析
+                        self.show_error("无法解析部分JSON数据，需要完整下载")
+                        return None
+                        
+                except requests.exceptions.RequestException as e:
+                    self.show_error(f"下载预览失败: {str(e)}")
+                    return None
+                    
+            # 如果是JSONL文件
+            elif file_extension == '.jsonl':
+                try:
+                    # 对于JSONL，只需获取前几行
+                    self.update_status("下载JSONL数据前几行进行预览...")
+                    
+                    # 使用流式下载获取前10行
+                    preview_items = []
+                    line_count = 0
+                    
+                    with session.get(url, stream=True) as r:
+                        r.raise_for_status()
+                        for line in r.iter_lines(decode_unicode=True):
+                            if line:
+                                try:
+                                    item = json.loads(line)
+                                    preview_items.append(item)
+                                    line_count += 1
+                                    if line_count >= 10:
+                                        break
+                                except json.JSONDecodeError:
+                                    continue
+                    
+                    self.update_status(f"✅ 成功获取JSONL预览，读取了 {len(preview_items)} 行")
+                    
+                    if preview_items:
+                        if len(preview_items) > 1:
+                            # 如果有多条记录，显示多行预览
+                            dialog = PreviewDialog(preview_items, 
+                                                  f"JSONL数据预览 ({len(preview_items)} 条记录)",
+                                                  self)
+                            dialog.exec_()
+                            return None  # 已显示对话框
+                        else:
+                            # 只有一条记录则返回
+                            return preview_items[0]
+                    else:
+                        self.show_error("获取到的JSONL数据为空")
+                        return None
+                        
+                except requests.exceptions.RequestException as e:
+                    self.show_error(f"下载JSONL预览失败: {str(e)}")
+                    return None
+                    
+            # 如果是ZIP文件，不支持预览
+            elif file_extension == '.zip':
+                self.update_status("⚠️ ZIP文件无法预览，需要完整下载后查看内容")
+                QMessageBox.information(self, "无法预览", 
+                                      "ZIP文件需要完整下载解压后才能查看内容，请点击「开始处理」进行完整操作。")
+                return None
+                
+            # 其他不支持的文件类型
+            else:
+                self.show_error(f"不支持预览的文件类型: {file_extension}")
+                supported_types = ".json, .jsonl, .zip (仅下载)"
+                QMessageBox.warning(self, "不支持的文件类型", 
+                                  f"当前版本仅支持预览 {supported_types} 文件。")
+                return None
+                
+        except Exception as e:
+            self.show_error(f"预览URL数据时出错: {str(e)}")
+            import traceback
+            self.show_error(traceback.format_exc())
+            return None
+
+class PreviewDialog(QDialog):
+    """数据预览对话框，用于在处理前查看数据"""
+    
+    def __init__(self, data, title="数据预览", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(800, 600)
+        
+        # 创建布局
+        layout = QVBoxLayout(self)
+        
+        # 创建表格
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)  # 三列：键、值、类型
+        self.table.setHorizontalHeaderLabels(["键", "值", "类型"])
+        
+        # 填充表格
+        if isinstance(data, list):
+            # 如果是列表，显示第一项的内容
+            if data:
+                self.setWindowTitle(f"{title} (显示第一条记录，共 {len(data)} 条)")
+                self._fill_table(data[0])
+            else:
+                self.table.setRowCount(1)
+                self.table.setItem(0, 0, QTableWidgetItem("空列表"))
+                self.table.setItem(0, 1, QTableWidgetItem(""))
+                self.table.setItem(0, 2, QTableWidgetItem("list"))
+        else:
+            # 如果是字典，直接显示内容
+            self._fill_table(data)
+        
+        # 调整列宽
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        
+        # 创建按钮
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
+        
+        layout.addWidget(self.table)
+        layout.addWidget(button_box)
+        
+    def _fill_table(self, data):
+        """填充表格内容"""
+        if not isinstance(data, dict):
+            self.table.setRowCount(1)
+            self.table.setItem(0, 0, QTableWidgetItem("数据"))
+            self.table.setItem(0, 1, QTableWidgetItem(str(data)))
+            self.table.setItem(0, 2, QTableWidgetItem(type(data).__name__))
+            return
+            
+        # 设置行数
+        self.table.setRowCount(len(data))
+        
+        # 填充数据
+        for i, (key, value) in enumerate(data.items()):
+            # 设置键
+            key_item = QTableWidgetItem(str(key))
+            self.table.setItem(i, 0, key_item)
+            
+            # 设置值（截断过长的文本）
+            value_str = str(value)
+            if len(value_str) > 500:
+                value_str = value_str[:500] + "..."
+            value_item = QTableWidgetItem(value_str)
+            self.table.setItem(i, 1, value_item)
+            
+            # 设置类型
+            type_name = type(value).__name__
+            if isinstance(value, dict):
+                type_name = f"dict ({len(value)} 项)"
+            elif isinstance(value, list):
+                type_name = f"list ({len(value)} 项)"
+            type_item = QTableWidgetItem(type_name)
+            self.table.setItem(i, 2, type_item)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
