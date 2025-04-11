@@ -1,0 +1,100 @@
+{
+  "datasets": [
+    {
+      "name": "BBH (BIG-Bench Hard)",
+      "link": "https://huggingface.co/datasets/lukaemon/bbh",
+      "son": "boolean_expressions,causal_judgement,date_understanding,disambiguation_qa,dyck_languages,formal_fallacies,geometric_shapes,hyperbaton,logical_deduction_five_objects,logical_deduction_seven_objects,logical_deduction_three_objects,movie_recommendation,multistep_arithmetic_two,navigate,object_counting,penguins_in_a_table,reasoning_about_colored_objects,ruin_names,salient_translation_error_detection,snarks,sports_understanding,temporal_sequences,tracking_shuffled_objects_five_objects,tracking_shuffled_objects_seven_objects,tracking_shuffled_objects_three_objects,web_of_lies,word_sorting"
+    },
+    {
+      "name": "GSM8K",
+      "link": "https://huggingface.co/datasets/openai/gsm8k",
+      "type":"train, test"
+    },
+    {
+      "name": "AI-ModelScope/blossom-math-v2",
+      "link": "https://huggingface.co/datasets/math"
+    },
+                              {
+                                "name": "WMT14",
+                                "link": "https://huggingface.co/datasets/wmt/wmt14"
+                              },
+                              {
+                                "name": "WMT16",
+                                "link": "https://huggingface.co/datasets/wmt/wmt16"
+                              },
+                              {
+                                "name": "WMT17",
+                                "link": "https://huggingface.co/datasets/wmt/wmt17"
+                              },
+    {
+      "name": "ARC-Easy",
+      "link": "https://huggingface.co/datasets/allenai/ai2_arc"
+    },
+    {
+      "name": "PIQA",
+      "link": "https://huggingface.co/datasets/piqa"
+    },
+
+    {
+      "name": "SST-2",
+      "link": "https://huggingface.co/datasets/sst2"
+    },
+    {
+      "name": "CNN/Daily Mail",
+      "link": "https://huggingface.co/datasets/cnn_dailymail"
+    },
+    {
+      "name": "Chatbot Arena",
+      "link": "https://huggingface.co/datasets/chatbot_arena"
+    },
+
+    {
+      "name": "The Pile",
+      "link": "https://huggingface.co/datasets/the_pile"
+    },
+    {
+      "name": "Enwiki",
+      "link": "https://huggingface.co/datasets/enwik"
+    },
+    {
+      "name": "WikiText-103",
+      "link": "https://huggingface.co/datasets/wikitext-103"
+    },
+    {
+      "name": "RedPajama",
+      "link": "https://huggingface.co/datasets/redpajama"
+    },
+    {
+      "name": "Penn Treebank (PTB)",
+      "link": "https://huggingface.co/datasets/ptb"
+    },
+    {
+      "name": "MNLI",
+      "link": "https://huggingface.co/datasets/mnli"
+    },
+    {
+      "name": "LAMBADA",
+      "link": "https://huggingface.co/datasets/lambada"
+    },
+    {
+      "name": "SQuAD 2.0",
+      "link": "https://huggingface.co/datasets/squad_v2"
+    },
+    {
+      "name": "ARC",
+      "link": "https://huggingface.co/datasets/allenai/ai2_arc"
+    },
+    {
+      "name": "HellaSwag",
+      "link": "https://huggingface.co/datasets/hellaswag"
+    },
+    {
+      "name": "BANKING77",
+      "link": "https://huggingface.co/datasets/banking77"
+    },
+    {
+      "name": "Commonsense QA",
+      "link": "https://huggingface.co/datasets/commonsense_qa"
+    }
+  ]
+}
